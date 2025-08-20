@@ -13,32 +13,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout the deployment repo
       - name: Checkout deployment repo
         uses: actions/checkout@v4
 
-      - name: Authenticate to GitHub Container Registry
-        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      # 2️⃣ Log in to GitHub Container Registry (GHCR)
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+      # 3️⃣ Set up SSH agent with private key
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Create .env file from secret
+      # 4️⃣ Create .env file from the chosen environment secret
+      - name: Create .env file
         run: |
+          echo "Creating .env file for ${{ github.event.inputs.environment }} environment..."
           if [ "${{ github.event.inputs.environment }}" = "dev" ]; then
             echo "${{ secrets.ENV_DEV }}" > .env
           else
             echo "${{ secrets.ENV_SIT }}" > .env
           fi
+          echo ".env file created:"
+          cat .env
 
-      - name: Deploy to Server
+      # 5️⃣ Deploy to Raspberry Pi server
+      - name: Deploy to Raspberry Pi
         run: |
           SERVER_USER=$(grep SERVER_USER .env | cut -d'=' -f2)
           SERVER_IP=$(grep SERVER_IP .env | cut -d'=' -f2)
+          echo "Deploying to $SERVER_USER@$SERVER_IP..."
           ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "
+            mkdir -p /opt/trades_deployment &&
             cd /opt/trades_deployment &&
-            git pull &&
+            git pull || echo 'Git pull failed, continuing...' &&
             docker compose --env-file .env pull &&
             docker compose --env-file .env up -d
           "
