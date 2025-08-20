@@ -1,10 +1,12 @@
+version: "3.8"
+
 services:
   db:
     image: postgres:16
     container_name: ${POSTGRES_CONTAINER_NAME}
     restart: unless-stopped
     env_file:
-      - ${ENV_FILE}
+      - ${ENV_FILE}   # this will point to .env created from secrets
     volumes:
       - ${POSTGRES_VOLUME_NAME}:/var/lib/postgresql/data
     ports:
@@ -26,3 +28,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+volumes:
+  ${POSTGRES_VOLUME_NAME}:
+    driver: local
