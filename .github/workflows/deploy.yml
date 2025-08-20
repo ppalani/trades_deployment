@@ -13,12 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout the deployment repo
+      # 1️⃣ Checkout the deployment repository
       - name: Checkout deployment repo
         uses: actions/checkout@v4
 
-      # 2️⃣ Log in to GitHub Container Registry (GHCR)
+      # 2️⃣ Log in to GitHub Container Registry (if package is private)
       - name: Log in to GHCR
+        if: ${{ secrets.GHCR_TOKEN }}
         run: |
           echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
@@ -40,13 +41,14 @@ jobs:
           echo ".env file created:"
           cat .env
 
-      # 5️⃣ Deploy to Raspberry Pi server
+      # 5️⃣ Deploy to Raspberry Pi via SSH
       - name: Deploy to Raspberry Pi
         run: |
           SERVER_USER=$(grep SERVER_USER .env | cut -d'=' -f2)
           SERVER_IP=$(grep SERVER_IP .env | cut -d'=' -f2)
-          echo "Deploying to $SERVER_USER@$SERVER_IP..."
-          ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "
+          SERVER_PORT=$(grep SERVER_PORT .env | cut -d'=' -f2)
+          echo "Deploying to $SERVER_USER@$SERVER_IP on port $SERVER_PORT..."
+          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} "
             mkdir -p /opt/trades_deployment &&
             cd /opt/trades_deployment &&
             git pull || echo 'Git pull failed, continuing...' &&
