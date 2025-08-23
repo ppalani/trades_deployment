@@ -34,7 +34,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # 4️⃣ Create .env file from the chosen environment secret
+      # 4️⃣ Create .env file locally
       - name: Create .env file
         run: |
           echo "Creating .env file for ${{ github.event.inputs.environment }} environment..."
@@ -46,16 +46,22 @@ jobs:
           echo ".env file created:"
           cat .env
 
-      # 5️⃣ Deploy to Raspberry Pi via SSH
+      # 5️⃣ Deploy to Raspberry Pi
       - name: Deploy to Raspberry Pi
         run: |
           SERVER_USER=$(grep SERVER_USER .env | cut -d'=' -f2)
           SERVER_IP=$(grep SERVER_IP .env | cut -d'=' -f2)
           SERVER_PORT=$(grep SERVER_PORT .env | cut -d'=' -f2)
+          DEPLOY_DIR="/home/${SERVER_USER}/trades_deployment"
           echo "Deploying to $SERVER_USER@$SERVER_IP on port $SERVER_PORT..."
+
+          # Copy .env to Pi
+          scp -P $SERVER_PORT .env ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/.env
+
+          # SSH into Pi and deploy
           ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} "
-            mkdir -p /opt/trades_deployment &&
-            cd /opt/trades_deployment &&
+            mkdir -p ${DEPLOY_DIR} &&
+            cd ${DEPLOY_DIR} &&
             git pull || echo 'Git pull failed, continuing...' &&
             docker compose --env-file .env pull &&
             docker compose --env-file .env up -d
