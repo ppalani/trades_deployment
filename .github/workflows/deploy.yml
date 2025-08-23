@@ -55,8 +55,8 @@ jobs:
           DEPLOY_DIR="/home/${SERVER_USER}/trades_deployment"
           echo "Deploying to $SERVER_USER@$SERVER_IP on port $SERVER_PORT..."
 
-          # Copy .env to Pi
-          scp -P $SERVER_PORT .env ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/.env
+          # Copy .env to Pi with host key checking disabled
+          scp -o StrictHostKeyChecking=no -P $SERVER_PORT .env ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/.env
 
           # SSH into Pi and deploy
           ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} "
