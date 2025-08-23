@@ -46,21 +46,22 @@ jobs:
           echo ".env file created:"
           cat .env
 
-      # 5️⃣ Deploy to Raspberry Pi
+      # 5️⃣ Deploy to Raspberry Pi using heredoc/SSH
       - name: Deploy to Raspberry Pi
         run: |
           SERVER_USER=$(grep SERVER_USER .env | cut -d'=' -f2)
           SERVER_IP=$(grep SERVER_IP .env | cut -d'=' -f2)
           SERVER_PORT=$(grep SERVER_PORT .env | cut -d'=' -f2)
           DEPLOY_DIR="/home/${SERVER_USER}/trades_deployment"
+
           echo "Deploying to $SERVER_USER@$SERVER_IP on port $SERVER_PORT..."
 
-          # Copy .env to Pi with host key checking disabled
-          scp -o StrictHostKeyChecking=no -P $SERVER_PORT .env ${SERVER_USER}@${SERVER_IP}:${DEPLOY_DIR}/.env
-
-          # SSH into Pi and deploy
+          # SSH into Pi, create deploy directory, write .env, and deploy
           ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} "
             mkdir -p ${DEPLOY_DIR} &&
+            cat > ${DEPLOY_DIR}/.env << 'EOF'
+$(cat .env)
+EOF
             cd ${DEPLOY_DIR} &&
             git pull || echo 'Git pull failed, continuing...' &&
             docker compose --env-file .env pull &&
