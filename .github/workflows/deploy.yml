@@ -34,7 +34,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # 4️⃣ Create .env file locally and store in a variable
+      # 4️⃣ Create .env file locally and store in output
       - name: Create .env file
         id: envfile
         run: |
@@ -43,10 +43,8 @@ jobs:
           else
             echo "${{ secrets.ENV_SIT }}" > .env
           fi
-          # Store content as a GitHub Actions output to pass to next step
-          ENV_CONTENT=$(cat .env)
           echo "env_content<<EOF" >> $GITHUB_OUTPUT
-          echo "$ENV_CONTENT" >> $GITHUB_OUTPUT
+          cat .env >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       # 5️⃣ Deploy to Raspberry Pi
@@ -56,22 +54,27 @@ jobs:
           SERVER_IP=$(grep SERVER_IP .env | cut -d'=' -f2)
           SERVER_PORT=$(grep SERVER_PORT .env | cut -d'=' -f2)
           DEPLOY_DIR="/home/${SERVER_USER}/trades_deployment"
+          ENV_CONTENT="${{ steps.envfile.outputs.env_content }}"
 
           echo "Deploying to $SERVER_USER@$SERVER_IP on port $SERVER_PORT..."
 
-          # Send the .env and deploy stack via SSH heredoc
-          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} bash << 'EOF_REMOTE'
-mkdir -p "${DEPLOY_DIR}"
-cat > "${DEPLOY_DIR}/.env" << 'EOF_ENV'
-${{ steps.envfile.outputs.env_content }}
-EOF_ENV
-cd "${DEPLOY_DIR}"
-# Clone repo if not already cloned
-if [ ! -d ".git" ]; then
-  git clone https://github.com/ppalani/trades_deployment.git .
-else
-  git pull
-fi
-docker compose --env-file .env pull
-docker compose --env-file .env up -d
+          # Ensure deployment directory exists and update repo
+          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} bash << EOF_REMOTE
+            mkdir -p "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/ppalani/trades_deployment.git .
+            else
+              git pull
+            fi
 EOF_REMOTE
+
+          # Send the .env content over stdin
+          echo "$ENV_CONTENT" | ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} "cat > $DEPLOY_DIR/.env"
+
+          # Run docker compose commands
+          ssh -o StrictHostKeyChecking=no -p $SERVER_PORT ${SERVER_USER}@${SERVER_IP} bash << EOF_DOCKER
+            cd "$DEPLOY_DIR"
+            docker compose --env-file .env pull
+            docker compose --env-file .env up -d
+EOF_DOCKER
